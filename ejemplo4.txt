@@ -1,0 +1,16 @@
+# Ejemplo 4: Operaciones Complejas
+declarar a <- 10
+declarar b <- 20
+declarar suma <- a + b
+declarar producto <- a * b
+
+imprimir("La suma es:")
+imprimir(suma)
+imprimir("El producto es:")
+imprimir(producto)
+
+si suma > 25 y producto < 300:
+    imprimir("Condicion cumplida")
+sino:
+    imprimir("Condicion no cumplida")
+fin

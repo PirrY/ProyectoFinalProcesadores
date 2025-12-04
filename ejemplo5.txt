@@ -1,0 +1,12 @@
+# Ejemplo 5: Cálculo de Factorial
+declarar numero <- 7
+declarar factorial <- 1
+declarar i <- 1
+
+mientras i <= numero:
+    factorial <- factorial * i
+    i <- i + 1
+fin
+
+imprimir("El factorial de 7 es:")
+imprimir(factorial)

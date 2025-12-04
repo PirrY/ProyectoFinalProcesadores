@@ -1,0 +1,8 @@
+# Ejemplo 1: Condicional Simple
+declarar x : entero <- 20
+
+si x > 5:
+    imprimir("Mayor que 5")
+sino:
+    imprimir("Menor o igual a 5")
+fin
