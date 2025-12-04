@@ -1,11 +1,3 @@
-(* ============================================
-   LENGUAJE FIRME (FRM) - Intérprete en OCaml
-   Análisis Léxico y Sintáctico
-   ============================================ *)
-
-(* ========== TIPOS DE DATOS ========== *)
-
-(* Tipo para los tokens del lenguaje *)
 type token =
   (* Palabras reservadas *)
   | KW_DECLARAR
@@ -95,7 +87,7 @@ type sentencia =
   | SPara of string * expresion * expresion * sentencia list
   | SExpresion of expresion
 
-(* ========== ANALIZADOR LÉXICO ========== *)
+(*   ANALIZADOR LÉXICO   *)
 
 (* Función para verificar si un caracter es dígito *)
 let es_digito c = c >= '0' && c <= '9'
@@ -107,14 +99,17 @@ let es_letra c =
 (* Función para verificar si un caracter es alfanumérico *)
 let es_alfanumerico c = es_letra c || es_digito c
 
-(* Función para leer un número (entero o real) *)
+(* Lee un número caracter por caracter
+   - acc: acumula el string del número
+   - tiene_punto: controla si ya encontró un punto decimal *)
 let rec leer_numero chars acc tiene_punto =
   match chars with
   | c :: rest when es_digito c ->
-      leer_numero rest (acc ^ (String.make 1 c)) tiene_punto
+      leer_numero rest (acc ^ String.make 1 c) tiene_punto
   | '.' :: rest when not tiene_punto ->
       leer_numero rest (acc ^ ".") true
   | _ ->
+      (* Ya no hay más dígitos, convertir a token *)
       if tiene_punto then
         (FLOAT (float_of_string acc), chars)
       else
@@ -207,15 +202,12 @@ let rec tokenizar chars =
       palabra_a_token palabra :: tokenizar chars_restantes
   | c :: _ -> failwith ("Error léxico: Caracter inesperado '" ^ (String.make 1 c) ^ "'")
 
-(* Función auxiliar para convertir string a lista de caracteres *)
+(* Convierte un string a lista de caracteres
+   Ejemplo: "hola" -> ['h'; 'o'; 'l'; 'a'] *)
 let string_a_chars s =
-  let rec aux i acc =
-    if i < 0 then acc
-    else aux (i - 1) (s.[i] :: acc)
-  in
-  aux (String.length s - 1) []
+  List.init (String.length s) (String.get s)
 
-(* ========== ANALIZADOR SINTÁCTICO ========== *)
+(*   ANALIZADOR SINTÁCTICO   *)
 
 (* Excepción para errores de parseo *)
 exception Error_parseo of string
@@ -319,7 +311,9 @@ and parsear_logica tokens =
   in
   aux izq rest
 
-(* Parsear expresión general *)
+(* Parsear expresión general
+   Esta es la entrada principal que delega a parsear_logica
+   La jerarquía de precedencia es: logica > relacional > aritmetica > termino > primaria *)
 and parsear_expresion tokens = parsear_logica tokens
 
 (* Parsear anotación de tipo *)
@@ -400,19 +394,21 @@ let rec parsear_programa tokens =
       let (sent, rest) = parsear_sentencia tokens in
       sent :: parsear_programa rest
 
-(* ========== EVALUADOR ========== *)
+(* EVALUADOR   *)
 
 (* Tipo para el entorno de variables *)
 type entorno = (string * valor) list
 
-(* Función para buscar variable en el entorno *)
+(* Busca una variable en el entorno (lista de pares nombre-valor)
+   Lanza excepción si no existe *)
 let rec buscar_variable entorno nombre =
   match entorno with
   | [] -> raise (Failure ("Variable no declarada: " ^ nombre))
   | (n, v) :: rest ->
       if n = nombre then v else buscar_variable rest nombre
 
-(* Función para actualizar o agregar variable en el entorno *)
+(* Actualiza o agrega una variable en el entorno
+   Si existe, reemplaza su valor. Si no existe, la agrega al inicio *)
 let rec actualizar_entorno entorno nombre valor =
   match entorno with
   | [] -> [(nombre, valor)]
@@ -466,6 +462,8 @@ let rec evaluar_expresion expr entorno =
       let v_izq = evaluar_expresion izq entorno in
       let v_der = evaluar_expresion der entorno in
       (match op with
+       (* Operaciones aritméticas: si ambos son enteros, resultado entero.
+          Si alguno es float, convierte ambos a float *)
        | "+" ->
            (match (v_izq, v_der) with
             | (VInt a, VInt b) -> VInt (a + b)
@@ -505,6 +503,7 @@ let rec evaluar_sentencia sent entorno =
       actualizar_entorno entorno id valor
 
   | SAsignacion (id, expr) ->
+      (* Primero verifica que la variable exista *)
       let _ = buscar_variable entorno id in
       let valor = evaluar_expresion expr entorno in
       actualizar_entorno entorno id valor
@@ -522,6 +521,7 @@ let rec evaluar_sentencia sent entorno =
         evaluar_programa sent_no entorno
 
   | SMientras (cond, sentencias) ->
+      (* Loop recursivo: evalúa condición, ejecuta bloque, repite *)
       let rec loop env =
         let cond_val = evaluar_expresion cond env in
         if valor_a_bool cond_val then
@@ -533,10 +533,12 @@ let rec evaluar_sentencia sent entorno =
       loop entorno
 
   | SPara (id, inicio, fin, sentencias) ->
+      (* Evalúa inicio y fin una sola vez, luego itera *)
       let v_inicio = valor_a_int (evaluar_expresion inicio entorno) in
       let v_fin = valor_a_int (evaluar_expresion fin entorno) in
       let rec loop i env =
         if i <= v_fin then
+          (* Actualiza la variable de iteración y ejecuta el bloque *)
           let env_con_i = actualizar_entorno env id (VInt i) in
           let nuevo_env = evaluar_programa sentencias env_con_i in
           loop (i + 1) nuevo_env
@@ -549,12 +551,12 @@ let rec evaluar_sentencia sent entorno =
       let _ = evaluar_expresion expr entorno in
       entorno
 
-(* Evaluar programa completo *)
+(* Evalúa una lista de sentencias secuencialmente
+   Usa fold_left para pasar el entorno actualizado de una sentencia a la siguiente *)
 and evaluar_programa sentencias entorno =
   List.fold_left (fun env sent -> evaluar_sentencia sent env) entorno sentencias
 
-(* ========== FUNCIÓN PRINCIPAL ========== *)
-
+(* Pipeline completo: código -> chars -> tokens -> AST -> ejecución *)
 let ejecutar_codigo codigo =
   try
     let chars = string_a_chars codigo in
